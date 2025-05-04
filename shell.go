@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"strings"
 )
 
@@ -19,13 +20,25 @@ func main() {
 		fmt.Print(prompt)
 
 		// READ
-		input, err := reader.ReadString('\n') // Delimiter
+		input, err := reader.ReadString('\n') // delimiter
 		if err != nil {
 			log.Fatal(err)
 		}
-		fmt.Printf("Line read: %s", input)
+		
+		if len(input) == 0 {
+			continue
+		}
+		fmt.Printf("the input is: %s", input)
+
 		// PARSE
+		var args []string = strings.Fields(input)// returns a slice (no size in square brackets)
+		fmt.Println(args) 
+
 		// EXECUTE
+		var cmd *exec.Cmd = exec.Command(args[0], args[1:]...) // ellipsis syntax to "spread out" the slice
+		cmd.Stdout = os.Stdout
+		cmd.Stdin = os.Stdin
+		cmd.Run()
 	}
 
 }
@@ -47,6 +60,7 @@ func getPromptInfo() (string, error) {
 		return prompt, err
 	}
 
+	// replace home dir with '~' when appropriate
 	if strings.Contains(pwd, homeDir) {
 		prompt = hostname + " || ~" + pwd[:len(homeDir)] + "$ "
 		return prompt, nil
