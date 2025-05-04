@@ -28,11 +28,9 @@ func main() {
 		if len(input) == 0 {
 			continue
 		}
-		fmt.Printf("the input is: %s", input)
 
 		// PARSE
 		var args []string = strings.Fields(input)// returns a slice (no size in square brackets)
-		fmt.Println(args) 
 
 		// EXECUTE
 		var cmd *exec.Cmd = exec.Command(args[0], args[1:]...) // ellipsis syntax to "spread out" the slice
