@@ -2,12 +2,13 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
-	"strings"
 	"regexp"
+	"strings"
 )
 
 // BackgroundProcess is a struct that contains a meta data of a background process.
@@ -21,7 +22,7 @@ func main() {
 	// Variables
 	var processes map[string]BackgroundProcess = make(map[string]BackgroundProcess) // input : BackgroundProcess
 	var isBackground bool = false
-	doneJobs := make(chan string)
+	doneJobs := make(chan error)
 	reader := bufio.NewReader(os.Stdin)
 	
 	// Regex
@@ -40,21 +41,23 @@ func main() {
 		if err != nil {
 			log.Fatal(err)
 		}
+		input = strings.TrimSpace(input) // remove trailing newline
 
 		// Joins any goroutines
-		select {
-			case msg := <-doneJobs:
-				fmt.Println("Background job finished: ", msg)
-				match := backgroundRegex.FindStringSubmatch(msg)
-				if len(match) > 1 { // A sub-match is found
-					delete(processes, match[1])
-				}
+		for {
+			select {
+				case errMsg := <-doneJobs:
+					match := backgroundRegex.FindStringSubmatch(errMsg.Error())
+					if len(match) > 1 { // A sub-match is found
+						delete(processes, match[1])
+					} 
 
-			default: // nothing to join
-
+				default: // nothing to join
+					goto continueREPL // go to continueREPL label
+			}
 		}
-		fmt.Printf("Num of bg processes: %d\n", len(processes)) // check if bg processes was handled properly
-		fmt.Println(processes)
+		continueREPL:
+		fmt.Println("Processes: ", processes)
 		
 		// Skips empty inputs
 		if len(input) == 0 {
@@ -63,7 +66,6 @@ func main() {
 
 		// PARSE
 		var args []string = strings.Fields(input) // returns a slice (no size in square brackets)
-		fmt.Printf("last arg: %v\n", args[len(args)-1])
 		if args[len(args)-1] == "&" {
 			isBackground = true
 			args = args[:len(args) - 1] // remove ampersand
@@ -77,7 +79,7 @@ func main() {
 		if !isBackground {
 			err := cmd.Run()
 			if err != nil {
-				log.Fatal(err)
+				fmt.Println("shell: unable to run command")
 			}
 		} else {
 			var backgroundProcess BackgroundProcess
@@ -120,20 +122,19 @@ func getPromptInfo() (string, error) {
 }
 
 // runBackgroundProcess launches a goroutine to start and wait for a process in the background
-func runBackgroundProcess(bp BackgroundProcess, done chan<- string) {
-	go func() {
+func runBackgroundProcess(bp BackgroundProcess, done chan<- error) {
+	go func()  {
 		err := bp.Cmd.Start()
 		if err != nil {
-			log.Fatal(err)
+			done <- errors.New("shell: unable to start command")
 		} 
 		
 		err = bp.Cmd.Wait()
 		fmt.Print("Done waiting..")
 		if err != nil {
-            done <- fmt.Sprintf("Job [%s] exited with error: %v", bp.Input, err)
-        } else {
-            done <- fmt.Sprintf("Job [%s] completed successfully", bp.Input)
-        }
-
+			done <- errors.New("shell: unable to wait for command")
+		} else { // return the inputted line
+			done <- errors.New("[" + bp.Input + "]")
+		}
 	}()
 }
