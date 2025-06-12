@@ -9,6 +9,8 @@ import (
 	"os/exec"
 	"regexp"
 	"strings"
+	"github.com/Scansy/shell/internal/commands" // Use module name to import
+	"github.com/Scansy/shell/history"
 )
 
 // BackgroundProcess is a struct that contains a meta data of a background process.
@@ -24,6 +26,7 @@ func main() {
 	var isBackground bool = false
 	doneJobs := make(chan error)
 	reader := bufio.NewReader(os.Stdin)
+	history := history.New()
 	
 	// Regex
 	backgroundRegex := regexp.MustCompile(`\[(.*?)\]`)
@@ -57,7 +60,7 @@ func main() {
 			}
 		}
 		continueREPL:
-		fmt.Println("Processes: ", processes)
+		// fmt.Println("Processes: ", processes)
 		
 		// Skips empty inputs
 		if len(input) == 0 {
@@ -69,6 +72,18 @@ func main() {
 		if args[len(args)-1] == "&" {
 			isBackground = true
 			args = args[:len(args) - 1] // remove ampersand
+		}
+
+		// Add the command to history
+		history.Add(input)
+
+		// Check for built-in commands
+		if cmd, ok := commands.Registry[args[0]]; ok {
+			// If the command is a built-in command, execute it
+			if err := cmd(args[1:]); err != nil {
+				fmt.Println(err)
+			}
+			continue // skip to the next iteration of the loop
 		}
 
 		// EXECUTE
@@ -114,7 +129,7 @@ func getPromptInfo() (string, error) {
 
 	// replace home dir with '~' when appropriate
 	if strings.Contains(pwd, homeDir) {
-		prompt = hostname + " || ~" + pwd[:len(homeDir)] + "$ "
+		prompt = hostname + " || ~" + pwd[:len(homeDir)] + pwd[len(homeDir):] + "$ "
 		return prompt, nil
 	}
 	prompt = hostname + " || " + pwd + "$ "
